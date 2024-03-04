@@ -1,7 +1,9 @@
 let Otp = require("../model/otp");
 let resetOtp = require("../controller/resetOtp");
+const nodemailer = require("nodemailer");
 
 function sendOtp(mail) {
+  console.log(`from send otp ${mail}`);
   const createdOtp = Math.floor(1000 + Math.random() * 9999);
   const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -28,9 +30,7 @@ function sendOtp(mail) {
         created: Date.now(),
       });
       ver.save();
-      data.save();
-      req.flash("m", [req.body.mail, ""]);
-      res.redirect("/verify");
+      return true;
     } else {
       resetOtp(mail, createdOtp);
     }

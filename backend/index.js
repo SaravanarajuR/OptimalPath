@@ -13,6 +13,10 @@ const { error } = require("console");
 const User = require("./model/user");
 const OTP = require("./model/otp");
 
+//controllers
+
+const sendOtp = require("../backend/controller/otp");
+
 app.use(express.json());
 
 mongoose.connect(
@@ -41,8 +45,9 @@ app.post("/register", async (req, res) => {
         verified: false,
       });
       user.save();
-      res.status(200).send({ message: "Registration Successfull" });
+      sendOtp(req.body.email);
     } catch (error) {
+      console.log(error);
       res.status(400).send({ message: "Incorrect Password" });
     }
   }
@@ -52,9 +57,11 @@ app.post("/login", async (req, res) => {
   let user = await User.findOne({ email: req.body.email });
   if (user) {
     let userVerify = await bcrypt.compare(req.body.pass, user.password);
-    console.log(user);
     if (userVerify) {
-      res.status(200).send({ message: "Login Successfull" });
+      if (user.verified) {
+      } else {
+        sendOtp(req.body.email);
+      }
     } else {
       res.status(500).send({ message: "Incorrect Password" });
     }

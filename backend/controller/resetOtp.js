@@ -1,5 +1,5 @@
 const express = require("express");
-const Otp = require("../models/otpModel");
+const Otp = require("../model/otp");
 
 const changeOtp = function resetOtp(gmail, otp) {
   Otp.findOneAndUpdate(
