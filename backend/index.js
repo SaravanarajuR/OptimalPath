@@ -1,0 +1,94 @@
+const express = require("express");
+const app = express();
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+const bp = require("body-parser");
+require("dotenv").config();
+const path = require("path");
+const cors = require("cors");
+const { error } = require("console");
+
+// models
+
+const User = require("./model/user");
+const OTP = require("./model/otp");
+
+app.use(express.json());
+
+mongoose.connect(
+  `mongodb+srv://saravana1:${process.env.mongopass}@cluster0.gdr7v46.mongodb.net/waywise?retryWrites=true&w=majority`
+);
+
+app.use(cors(["http://localhost:3000"]));
+
+// Static files serving middleware
+app.use(express.static(path.join(__dirname, "../", "client", "build")));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../", "client", "build", "index.html"));
+});
+
+app.post("/register", async (req, res) => {
+  let userCheck = await User.find({ email: req.body.email });
+  if (userCheck.length >= 1) {
+    res.status(400).send({ message: "User Already Exists" });
+  } else {
+    try {
+      const encryptedPass = await bcrypt.hash(req.body.pass, 10);
+      const user = new User({
+        email: req.body.email,
+        password: encryptedPass,
+        verified: false,
+      });
+      user.save();
+      res.status(200).send({ message: "Registration Successfull" });
+    } catch (error) {
+      res.status(400).send({ message: "Incorrect Password" });
+    }
+  }
+});
+
+app.post("/login", async (req, res) => {
+  let user = await User.findOne({ email: req.body.email });
+  if (user) {
+    let userVerify = await bcrypt.compare(req.body.pass, user.password);
+    console.log(user);
+    if (userVerify) {
+      res.status(200).send({ message: "Login Successfull" });
+    } else {
+      res.status(500).send({ message: "Incorrect Password" });
+    }
+  } else {
+    res.status(500).send({ message: "User Does Not Exists" });
+  }
+});
+
+app.post("/getOtpExpiryTime", async (req, res) => {
+  try {
+    const otp = await OTP.findOne({ email: req.body.email });
+
+    if (!otp) {
+      return res.status(404).json({ message: "OTP not found" });
+    }
+
+    const currentTime = new Date();
+    const createdAt = new Date(otp.createdAt);
+    const expiryTime = otp.expiryTime;
+
+    const elapsedTime = currentTime - createdAt;
+    const remainingTime = expiryTime - elapsedTime;
+
+    if (remainingTime <= 0) {
+      return res.status(200).json({ message: "OTP has expired" });
+    }
+
+    return res.status(200).json({ remainingTime });
+  } catch (error) {
+    console.error("Error while calculating OTP expiry time:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.listen(9000, () => {
+  console.log("server running");
+});
