@@ -16,6 +16,7 @@ const OTP = require("./model/otp");
 //controllers
 
 const sendOtp = require("../backend/controller/otp");
+const resetOtp = require("./controller/resetOtp");
 
 app.use(express.json());
 
@@ -46,6 +47,7 @@ app.post("/register", async (req, res) => {
       });
       user.save();
       sendOtp(req.body.email);
+      res.status(200).send({ message: "OTP Sent Successfully" });
     } catch (error) {
       console.log(error);
       res.status(400).send({ message: "Incorrect Password" });
@@ -75,7 +77,7 @@ app.post("/getOtpExpiryTime", async (req, res) => {
     const otp = await OTP.findOne({ email: req.body.email });
 
     if (!otp) {
-      return res.status(404).json({ message: "OTP not found" });
+      return res.status(404).send({ message: "OTP not found" });
     }
 
     const currentTime = new Date();
@@ -86,13 +88,29 @@ app.post("/getOtpExpiryTime", async (req, res) => {
     const remainingTime = expiryTime - elapsedTime;
 
     if (remainingTime <= 0) {
-      return res.status(200).json({ message: "OTP has expired" });
+      return res.status(200).send({ message: "OTP has expired" });
     }
 
-    return res.status(200).json({ remainingTime });
+    return res.status(200).send({ remainingTime });
   } catch (error) {
     console.error("Error while calculating OTP expiry time:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).send({ message: "Internal server error" });
+  }
+});
+
+app.post("/resetOtp", async (req, res) => {
+  await sendOtp(req.body.email);
+  res.status(200).send({ message: "OTP has been reset Successfully" });
+});
+
+app.post("/verifyotp", async (req, res) => {
+  let mail = req.body.mail;
+  let otp = await OTP.findOne({ email: mail });
+  if (Number(req.body.submittedOtp) === otp["otp"]) {
+    await User.findByIdAndUpdate({ email: mail }, { verified: true });
+    res.status(200).send();
+  } else {
+    res.status(300).send({ message: "Invalid OTP try again" });
   }
 });
 

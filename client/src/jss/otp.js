@@ -87,16 +87,20 @@ const styles = {
     fontSize: "15px",
     fontFamily: "aerial",
   },
-  error: {
+  message: {
     padding: "10px",
     position: "absolute",
     top: "10px",
     right: "10px",
-    fontWeight: "700",
     color: "white",
     fontSize: "1.2rem",
     fontFamily: "aerial",
+  },
+  error: {
     backgroundColor: "rgba(237,67,55)",
+  },
+  success: {
+    backgroundColor: "rgba(0,200,0,0.5)",
   },
 };
 
