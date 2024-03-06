@@ -7,6 +7,7 @@ require("dotenv").config();
 const path = require("path");
 const cors = require("cors");
 const { error } = require("console");
+const handleFetch = require("../backend/getNodeData");
 
 // models
 
@@ -34,6 +35,7 @@ app.get("*", (req, res) => {
 });
 
 app.post("/register", async (req, res) => {
+  await handleFetch();
   let userCheck = await User.find({ email: req.body.email });
   if (userCheck.length >= 1) {
     res.status(400).send({ message: "User Already Exists" });
@@ -62,7 +64,7 @@ app.post("/login", async (req, res) => {
     if (userVerify) {
       if (user.verified) {
       } else {
-        sendOtp(req.body.email);
+        await sendOtp(req.body.email);
       }
     } else {
       res.status(500).send({ message: "Incorrect Password" });
@@ -85,13 +87,13 @@ app.post("/getOtpExpiryTime", async (req, res) => {
     const expiryTime = otp.expiryTime;
 
     const elapsedTime = currentTime - createdAt;
-    const remainingTime = expiryTime - elapsedTime;
+    const remainingTime = String(expiryTime - elapsedTime);
 
     if (remainingTime <= 0) {
       return res.status(200).send({ message: "OTP has expired" });
     }
 
-    return res.status(200).send({ remainingTime });
+    return res.status(200).send({ message: remainingTime });
   } catch (error) {
     console.error("Error while calculating OTP expiry time:", error);
     return res.status(500).send({ message: "Internal server error" });

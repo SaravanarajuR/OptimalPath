@@ -10,6 +10,7 @@ function resetOtp(gmail, otp) {
       otp: otp,
     }
   ).then((f) => {});
+  return;
 }
 
 module.exports = resetOtp;
