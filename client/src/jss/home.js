@@ -70,6 +70,10 @@ const styles = {
     margin: "auto 0",
     cursor: "pointer",
   },
+  selectedArea: {
+    height: "100%",
+    zIndex: "999",
+  },
 };
 
 export default styles;

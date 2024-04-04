@@ -3,15 +3,17 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { withStyles } from "@material-ui/styles";
 import styles from "../jss/home";
 
-// Your MapWithUserLocation component
 function MapWithUserLocation(props) {
-  const [userLocation, setUserLocation] = useState(null);
-  const [userFound, setUserFound] = useState(false);
   const { classes } = props;
 
+  const [userLocation, setUserLocation] = useState(null);
+  const [typed, setTyped] = useState("");
+  const [refreshRecommendation, setRefreshRecommendation] = useState(false);
+  const [userFound, setUserFound] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(5);
   const [mapKey, setMapKey] = useState(0);
   const [recommendations, setRecommendations] = useState([]);
+  const [toggleRecommendations, setToggleRecommendation] = useState(true);
   const [selectedArea, setSelectedArea] = useState(false);
   const [boundingBox, setBoundingBox] = useState(false);
   const [lat, setLat] = useState(false);
@@ -37,21 +39,25 @@ function MapWithUserLocation(props) {
     }
   }, []);
 
-  function handleChoose(evt) {
-    searchRef.current.value = evt.target.textContent;
-    setLat(recommendations[Number(evt.target.id)]["lat"]);
-    setLon(recommendations[Number(evt.target.id)]["lon"]);
-    setBoundingBox(recommendations[Number(evt.target.id)]["bounds"]);
-    setName(recommendations[Number(evt.target.id)]["name"]);
-    setSelectedArea([
-      recommendations[Number(evt.target.id)]["lat"],
-      recommendations[Number(evt.target.id)]["lon"],
-    ]);
-    setMapKey((prev) => prev + 1);
-    setRecommendations([]);
-  }
+  useEffect(() => {
+    handleRecommendationRefresh();
+  }, [refreshRecommendation]);
 
-  const handleChange = async () => {
+  useEffect(() => {
+    if (userFound && userLocation) {
+      setZoomLevel(20);
+      setMapKey((prevKey) => prevKey + 1);
+    }
+  }, [userFound, userLocation]);
+
+  const handleChange = async (evt) => {
+    setTyped(evt.target.value);
+    setTimeout(() => {
+      setRefreshRecommendation(true);
+    }, 1000);
+  };
+
+  async function handleRecommendationRefresh() {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${searchRef.current.value}&format=json`
     );
@@ -66,19 +72,30 @@ function MapWithUserLocation(props) {
       });
     }
     setRecommendations(recommend);
-  };
+    setRefreshRecommendation(false);
+  }
 
-  useEffect(() => {
-    if (userFound && userLocation) {
-      setZoomLevel(20);
-      setMapKey((prevKey) => prevKey + 1);
-    }
-  }, [userFound]);
+  function handleChoose(evt) {
+    const selectedIndex = Number(evt.target.id);
+    const selectedRecommendation = recommendations[selectedIndex];
+    setTyped(selectedRecommendation["name"]);
+    setLat(selectedRecommendation["lat"]);
+    setLon(selectedRecommendation["lon"]);
+    setBoundingBox(selectedRecommendation["bounds"]);
+    setName(selectedRecommendation["name"]);
+    setSelectedArea([
+      selectedRecommendation["lat"],
+      selectedRecommendation["lon"],
+    ]);
+    setMapKey((prev) => prev + 1);
+    setRecommendations([]);
+    setTimeout(() => {
+      setToggleRecommendation(false);
+    }, 100);
+  }
 
-  // Custom map style hook
   const CustomMapStyle = () => {
     const map = useMap();
-    // Customize map style here
     return null;
   };
 
@@ -99,9 +116,7 @@ function MapWithUserLocation(props) {
           style={{ height: "100%", width: "100%" }}
           zoomControl={false}
         >
-          {/* Custom map style */}
           <CustomMapStyle />
-
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -114,13 +129,17 @@ function MapWithUserLocation(props) {
         </MapContainer>
         <div className={classes.form}>
           <input
-            list="recommendations"
             placeholder="search"
             className={classes.input}
             ref={searchRef}
+            value={typed}
+            onFocus={() => {
+              setToggleRecommendation(true);
+            }}
             onChange={handleChange}
           />
-          {recommendations.length > 0 ? (
+          <div className={classes.selectedArea}></div>
+          {toggleRecommendations ? (
             <div className={classes.recommendations}>
               {recommendations.map((node, index) => {
                 return (
@@ -145,5 +164,4 @@ function MapWithUserLocation(props) {
   );
 }
 
-// Export the styled component
 export default withStyles(styles)(MapWithUserLocation);
