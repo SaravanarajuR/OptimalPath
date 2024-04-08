@@ -7,7 +7,7 @@ require("dotenv").config();
 const path = require("path");
 const cors = require("cors");
 const { error } = require("console");
-const handleFetch = require("../api/getNodeData");
+const fs = require("fs");
 
 // models
 
@@ -113,6 +113,21 @@ app.post("/verifyotp", async (req, res) => {
   } else {
     res.status(300).send({ message: "Invalid OTP try again" });
   }
+});
+
+app.post("/getPath", async (req, res) => {
+  const paths = [];
+  const source = req.body.sourceCoordinates;
+  let relation;
+  fs.readFile(
+    path.join(__dirname, "../", "data", "network", "relationsData.json"),
+    "utf8",
+    (err, data) => {
+      relation = data;
+      data["elements"]["members"];
+      res.sendStatus(200);
+    }
+  );
 });
 
 app.listen(9000, () => {

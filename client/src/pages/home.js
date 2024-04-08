@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Popup,
+  useMapEvents,
+  Marker,
+} from "react-leaflet";
 import { withStyles } from "@material-ui/styles";
 import styles from "../jss/home";
 
@@ -10,17 +16,23 @@ function MapWithUserLocation(props) {
   const [typed, setTyped] = useState("");
   const [refreshRecommendation, setRefreshRecommendation] = useState(false);
   const [userFound, setUserFound] = useState(false);
+  const [sourceCoordinates, setSourceCoordinates] = useState(false);
+  const [destCoordinates, setDestCoordinates] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(5);
   const [mapKey, setMapKey] = useState(0);
   const [recommendations, setRecommendations] = useState([]);
-  const [toggleRecommendations, setToggleRecommendation] = useState(true);
+  const [clickedLocation, setClickedLocation] = useState(false);
+  const [toggleRecommendations, setToggleRecommendation] = useState(false);
+  const [clickedLocationName, setClickedLocationName] = useState(false);
   const [selectedArea, setSelectedArea] = useState(false);
-  const [boundingBox, setBoundingBox] = useState(false);
-  const [lat, setLat] = useState(false);
-  const [lon, setLon] = useState(false);
-  const [name, setName] = useState(false);
+  const [destTyped, setDestTyped] = useState("");
+  const [activeInput, setActiveInput] = useState("");
+  const [map, setMap] = useState();
 
   const searchRef = useRef();
+  const destinationRef = useRef();
+  let markerRef = useRef();
+  let clickedRef = useRef();
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -35,7 +47,7 @@ function MapWithUserLocation(props) {
         }
       );
     } else {
-      console.error("Geolocation is not supported by this browser");
+      fetchUserLocation();
     }
   }, []);
 
@@ -51,42 +63,122 @@ function MapWithUserLocation(props) {
   }, [userFound, userLocation]);
 
   const handleChange = async (evt) => {
-    setTyped(evt.target.value);
+    if (evt.target.id === "source") {
+      setTyped(evt.target.value);
+      setActiveInput("source"); // Set active input as source
+    } else {
+      setDestTyped(evt.target.value);
+      setActiveInput("destination"); // Set active input as destination
+    }
     setTimeout(() => {
       setRefreshRecommendation(true);
     }, 1000);
   };
 
+  const fetchUserLocation = async () => {
+    try {
+      const response = await fetch("https://ipapi.co/json/");
+      const data = await response.json();
+      const { latitude, longitude } = data;
+      setUserLocation({
+        lat: parseFloat(latitude),
+        lng: parseFloat(longitude),
+      });
+      setSourceCoordinates([parseFloat(latitude), parseFloat(longitude)]);
+      setUserFound(true);
+    } catch (error) {
+      console.error("Error getting user location:", error);
+    }
+  };
+
   async function handleRecommendationRefresh() {
+    let inputValue = activeInput === "source" ? typed : destTyped;
+    if (activeInput === "source") {
+      inputValue = typed;
+    } else if (activeInput === "destination") {
+      inputValue = destTyped;
+    } else {
+      inputValue = "";
+    }
+    console.log(inputValue);
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${searchRef.current.value}&format=json`
+      `https://nominatim.openstreetmap.org/search?q=${inputValue}&format=json`
     );
     let res = await response.json();
-    let recommend = [];
-    for (let i of res) {
-      recommend.push({
-        name: i["display_name"],
-        lat: i["lat"],
-        lon: i["lon"],
-        bounds: i["boundingbox"],
+    console.log(res);
+    let distances = [];
+
+    // Calculate distances and associate with recommendations
+    for (let i = 0; i < res.length; i++) {
+      let distance = Math.sqrt(
+        Math.pow(userLocation.lat - res[i]["lat"], 2) +
+          Math.pow(userLocation.lng - res[i]["lon"], 2)
+      );
+      distances.push({ index: i, distance: distance });
+    }
+
+    // Sort recommendations based on distances
+    distances.sort((a, b) => a.distance - b.distance);
+
+    // Reorder recommendations based on sorted distances
+    let sortedRecommendations = [];
+    for (let entry of distances) {
+      sortedRecommendations.push({
+        name: res[entry.index]["display_name"],
+        lat: res[entry.index]["lat"],
+        id: res[entry.index]["osm_id"],
+        lon: res[entry.index]["lon"],
+        bounds: res[entry.index]["boundingbox"],
+        distance: entry.distance, // Optional: include distance in recommendation object
       });
     }
-    setRecommendations(recommend);
+
+    // Set sorted recommendations and update state
+    setRecommendations(sortedRecommendations);
     setRefreshRecommendation(false);
+  }
+
+  async function handleSubmit() {
+    const res = await fetch("http://localhost:9000/getPath", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sourceCoordinates, destCoordinates }),
+    });
+  }
+
+  function setValue(ele) {
+    if (ele === "source") {
+      setTyped(clickedLocationName);
+      setSourceCoordinates(clickedLocation);
+    } else {
+      setDestTyped(clickedLocationName);
+      setDestCoordinates(clickedLocation);
+    }
   }
 
   function handleChoose(evt) {
     const selectedIndex = Number(evt.target.id);
     const selectedRecommendation = recommendations[selectedIndex];
-    setTyped(selectedRecommendation["name"]);
-    setLat(selectedRecommendation["lat"]);
-    setLon(selectedRecommendation["lon"]);
-    setBoundingBox(selectedRecommendation["bounds"]);
-    setName(selectedRecommendation["name"]);
+    if (activeInput === "source") {
+      setTyped(selectedRecommendation["name"]);
+      setSourceCoordinates([
+        selectedRecommendation["lat"],
+        selectedRecommendation["lon"],
+      ]);
+    } else if (activeInput === "destination") {
+      setDestTyped(selectedRecommendation["name"]);
+      setDestCoordinates([
+        selectedRecommendation["lat"],
+        selectedRecommendation["lon"],
+      ]);
+    }
     setSelectedArea([
       selectedRecommendation["lat"],
       selectedRecommendation["lon"],
     ]);
+    setActiveInput("none");
     setMapKey((prev) => prev + 1);
     setRecommendations([]);
     setTimeout(() => {
@@ -94,52 +186,146 @@ function MapWithUserLocation(props) {
     }, 100);
   }
 
-  const CustomMapStyle = () => {
-    const map = useMap();
+  const MapEventHandler = () => {
+    const map = useMapEvents({
+      click: async (e) => {
+        setClickedLocation([e.latlng.lat, e.latlng.lng]);
+        let locationName = await getDisplayName(e.latlng.lat, e.latlng.lng);
+        setClickedLocationName(locationName);
+      },
+    });
     return null;
   };
+
+  async function getDisplayName(lat, lng) {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+      );
+      const data = await response.json();
+      return data["display_name"];
+    } catch (error) {
+      console.error("Error fetching display name:", error);
+      return null;
+    }
+  }
+
+  const calculateBoundingBox = (markers) => {
+    if (markers.length === 0) return null;
+
+    let latitudes = markers.map((marker) => marker.lat);
+    let longitudes = markers.map((marker) => marker.lng);
+
+    let minLat = Math.min(...latitudes);
+    let maxLat = Math.max(...latitudes);
+    let minLng = Math.min(...longitudes);
+    let maxLng = Math.max(...longitudes);
+
+    return [
+      [(minLat + maxLat) / 2, (minLng + maxLng) / 2],
+      [minLat, minLng],
+      [maxLat, maxLng],
+    ];
+  };
+
+  const allMarkers = [];
+  if (sourceCoordinates)
+    allMarkers.push({ lat: sourceCoordinates[0], lng: sourceCoordinates[1] });
+  if (destCoordinates)
+    allMarkers.push({ lat: destCoordinates[0], lng: destCoordinates[1] });
+  if (clickedLocation)
+    allMarkers.push({ lat: clickedLocation[0], lng: clickedLocation[1] });
+
+  // Calculate bounding box
+  const boundingBox = calculateBoundingBox(allMarkers);
 
   return (
     <div className={classes.parent}>
       <div className={classes.map}>
         <MapContainer
-          center={
-            userFound
-              ? selectedArea
-                ? selectedArea
-                : userLocation
-              : [20.5937, 78.9629]
-          }
+          whenReady={setMap}
+          center={boundingBox ? boundingBox[0] : userLocation}
+          bounds={boundingBox ? boundingBox.slice(1) : null}
           zoom={zoomLevel}
           key={mapKey}
           maxZoom={18}
-          style={{ height: "100%", width: "100%" }}
+          style={{ height: "100%", width: "100%", cursor: "default" }}
           zoomControl={false}
         >
-          <CustomMapStyle />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           {userLocation && (
-            <Marker position={selectedArea || userLocation}>
-              <Popup>You are here</Popup>
+            <Marker position={sourceCoordinates || userLocation}>
+              <Popup
+                ref={(r) => {
+                  markerRef = r;
+                }}
+              >
+                You are here
+              </Popup>
+            </Marker>
+          )}
+          {destCoordinates && (
+            <Marker position={destCoordinates}>
+              <Popup>{destTyped}</Popup>
+            </Marker>
+          )}
+          {clickedLocation && (
+            <Marker position={clickedLocation}>
+              <Popup ref={clickedRef}>
+                <p>{clickedLocationName}</p>
+                <div className={classes.popupDiv}>
+                  <button
+                    onClick={() => {
+                      setValue("source");
+                    }}
+                    className={`btn btn-dark ${classes.popupButton}`}
+                  >
+                    Set as Source
+                  </button>
+                  <button
+                    onClick={() => {
+                      setValue("destination");
+                    }}
+                    className={`btn btn-dark ${classes.popupButton}`}
+                  >
+                    Set as Destination
+                  </button>
+                </div>
+              </Popup>
             </Marker>
           )}
         </MapContainer>
         <div className={classes.form}>
           <input
-            placeholder="search"
+            placeholder="from"
             className={classes.input}
+            id="source"
             ref={searchRef}
+            autoComplete="off"
             value={typed}
             onFocus={() => {
               setToggleRecommendation(true);
+              setActiveInput("source"); // Set active input as source
             }}
             onChange={handleChange}
           />
-          <div className={classes.selectedArea}></div>
-          {toggleRecommendations ? (
+          <input
+            placeholder="to"
+            className={classes.input}
+            id="destination"
+            ref={destinationRef}
+            autoComplete="off"
+            value={destTyped}
+            onFocus={() => {
+              setToggleRecommendation(true);
+              setActiveInput("destination"); // Set active input as destination
+            }}
+            onChange={handleChange}
+          />
+          {toggleRecommendations && activeInput !== "none" ? (
             <div className={classes.recommendations}>
               {recommendations.map((node, index) => {
                 return (
@@ -149,8 +335,10 @@ function MapWithUserLocation(props) {
                     onClick={handleChoose}
                     key={index}
                   >
-                    <i className="fa-solid fa-map-location"></i>
-                    <p className={classes.location}>{node["name"]}</p>
+                    <i id={index} className="fa-solid fa-map-location"></i>
+                    <p id={index} className={classes.location}>
+                      {node["name"]}
+                    </p>
                   </div>
                 );
               })}
@@ -160,6 +348,12 @@ function MapWithUserLocation(props) {
           )}
         </div>
       </div>
+      <button
+        className={`btn btn-dark btn-lg ${classes.submit}`}
+        onClick={handleSubmit}
+      >
+        <i class="fa-solid fa-magnifying-glass"></i> Find Path
+      </button>
     </div>
   );
 }

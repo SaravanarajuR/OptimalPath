@@ -16,8 +16,8 @@ const styles = {
   },
   map: {
     position: "relative",
-    width: "98%",
-    height: "98%",
+    width: "100%",
+    height: "100%",
     overflow: "hidden",
     backgroundColor: "#fff",
   },
@@ -25,7 +25,9 @@ const styles = {
     width: "30%",
     position: "absolute",
     left: "20px",
+    height: "auto",
     display: "flex",
+    maxHeight: "90%",
     flexDirection: "column",
     gap: "5px",
     top: "10px",
@@ -33,14 +35,16 @@ const styles = {
     zIndex: "1000",
     "@media(max-width:900px)": {
       width: "60%",
+      height: "90%",
     },
   },
   input: {
     width: "100%",
-    boxShadow: "rgba(99, 99, 99, 0.2) 0px 2px 8px 0px;",
+    boxShadow: "rgba(99, 99, 99, 0.2) 15px 15px 15px 0px;",
     borderRadius: "10px",
     padding: "15px",
     height: "5%",
+    minHeight: "50px",
     border: "1px solid #BEBEBE",
     "&:focus": {
       outline: "1px solid green",
@@ -48,9 +52,21 @@ const styles = {
   },
   recommendations: {
     backgroundColor: "white",
-    borderRadius: "20px",
+    top: "17%",
+    borderRadius: "15px",
     boxShadow: "rgba(99, 99, 99, 0.2) 0px 2px 8px 0px;",
     cursor: "pointer",
+    height: "auto",
+    overflowY: "auto",
+    "&::-webkit-scrollbar-thumb": {
+      backgroundColor: "rgba(255,255,255,0.5)",
+      borderRadius: "10px",
+    },
+    "&::-webkit-scrollbar": {
+      backgroundColor: "black",
+      borderRadius: "10px",
+      width: "10px",
+    },
   },
   node: {
     backgroundColor: "white",
@@ -70,9 +86,16 @@ const styles = {
     margin: "auto 0",
     cursor: "pointer",
   },
-  selectedArea: {
-    height: "100%",
-    zIndex: "999",
+  popupDiv: {
+    display: "flex",
+    gap: "10px",
+  },
+  submit: {
+    position: "absolute",
+    left: "2%",
+    bottom: "2%",
+    zIndex: "1001",
+    width: "150px",
   },
 };
 
