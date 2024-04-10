@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  MapContainer,
-  TileLayer,
-  Popup,
-  useMapEvents,
-  Marker,
-} from "react-leaflet";
+import { MapContainer, TileLayer, Popup, Marker, useMap } from "react-leaflet";
 import { withStyles } from "@material-ui/styles";
 import styles from "../jss/home";
 import L from "leaflet";
@@ -13,7 +7,7 @@ import L from "leaflet";
 function MapWithUserLocation(props) {
   const { classes } = props;
 
-  const [userLocation, setUserLocation] = useState(null);
+  const [userLocation, setUserLocation] = useState(false);
   const [typed, setTyped] = useState("");
   const [refreshRecommendation, setRefreshRecommendation] = useState(false);
   const [userFound, setUserFound] = useState(false);
@@ -28,8 +22,9 @@ function MapWithUserLocation(props) {
   const [selectedArea, setSelectedArea] = useState(false);
   const [destTyped, setDestTyped] = useState("");
   const [activeInput, setActiveInput] = useState("");
-  const [map, setMap] = useState();
+  const [map, setMap] = useState(false);
   const [boundingBox, setBoundingBox] = useState(null);
+  const [center, setCenter] = useState(null);
 
   const searchRef = useRef();
   const destinationRef = useRef();
@@ -54,9 +49,8 @@ function MapWithUserLocation(props) {
   }, []);
 
   useEffect(() => {
-    const boundingBox = calculateBoundingBox();
-    setBoundingBox(boundingBox);
-  }, [sourceCoordinates, destCoordinates]);
+    CalculateCenter();
+  }, [userLocation, sourceCoordinates, destCoordinates]);
 
   useEffect(() => {
     handleRecommendationRefresh();
@@ -155,6 +149,7 @@ function MapWithUserLocation(props) {
     }
     setClickedLocation(false);
     setClickedLocationName(false);
+    console.log(map.events);
   }
 
   function handleChoose(evt) {
@@ -183,15 +178,15 @@ function MapWithUserLocation(props) {
     setTimeout(() => {
       setToggleRecommendation(false);
     }, 100);
+    console.log(map);
   }
 
   const MapEventHandler = () => {
-    const map = useMapEvents({
-      click: async (e) => {
-        setClickedLocation([e.latlng.lat, e.latlng.lng]);
-        let locationName = await getDisplayName(e.latlng.lat, e.latlng.lng);
-        setClickedLocationName(locationName);
-      },
+    const map = useMap();
+    map.on("click", async (e) => {
+      setClickedLocation([e.latlng.lat, e.latlng.lng]);
+      let locationName = await getDisplayName(e.latlng.lat, e.latlng.lng);
+      setClickedLocationName(locationName);
     });
     return null;
   };
@@ -209,68 +204,37 @@ function MapWithUserLocation(props) {
     }
   }
 
-  const calculateBoundingBox = () => {
-    const defaultLocation = { lat: 0, lng: 0 };
-    const markers = [];
-    if (sourceCoordinates) {
-      markers.push(sourceCoordinates);
-    } else {
-      markers.push(userLocation || defaultLocation);
-    }
-    if (destCoordinates) {
-      markers.push(destCoordinates);
-    } else {
-      markers.push(userLocation || defaultLocation);
-    }
-    const latitudes = markers.map((marker) => marker.lat);
-    const longitudes = markers.map((marker) => marker.lng);
-    const minLat = Math.min(...latitudes);
-    const maxLat = Math.max(...latitudes);
-    const minLng = Math.min(...longitudes);
-    const maxLng = Math.max(...longitudes);
-    return [
-      [minLat - 0.05, minLng - 0.05],
-      [maxLat + 0.05, maxLng + 0.05],
-    ];
-  };
-
-  const calculateCenter = () => {
+  function CalculateCenter() {
     const points = [];
-    if (userLocation && !isNaN(userLocation.lat) && !isNaN(userLocation.lng)) {
-      points.push(userLocation);
-    }
-    if (
-      sourceCoordinates &&
-      !isNaN(sourceCoordinates.lat) &&
-      !isNaN(sourceCoordinates.lng)
-    ) {
+    if (sourceCoordinates) {
       points.push(sourceCoordinates);
     }
-    if (
-      destCoordinates &&
-      !isNaN(destCoordinates.lat) &&
-      !isNaN(destCoordinates.lng)
-    ) {
+    if (destCoordinates) {
       points.push(destCoordinates);
     }
-    if (points.length === 0) {
-      return [20.5937, 78.9689];
+
+    if (points.length === 0 && userLocation) {
+      setCenter([userLocation.lat, userLocation.lng]);
+    } else if (points.length === 1) {
+      setCenter([points[0][0], points[0][1]]);
+    } else if (points.length > 1) {
+      let bound = L.latLngBounds(points);
+      let centerObj = bound.getCenter();
+      setCenter([centerObj.lat, centerObj.lng]);
+    } else {
+      setCenter(null);
     }
-    const totalLat = points.reduce((sum, point) => sum + point.lat, 0);
-    const totalLng = points.reduce((sum, point) => sum + point.lng, 0);
-    const avgLat = totalLat / points.length;
-    const avgLng = totalLng / points.length;
-    return [avgLat, avgLng];
-  };
+    setMapKey((prev) => prev + 1);
+  }
 
   return (
     <div className={classes.parent}>
       <div className={classes.map}>
         <MapContainer
-          center={userFound ? calculateCenter() : [20.5937, 78.9689]}
-          bounds={boundingBox}
-          whenReady={setMap}
+          center={userLocation ? center : [20.5937, 78.9689]}
+          boundsOptions={{ padding: [50, 50] }}
           zoom={zoomLevel}
+          whenReady={setMap}
           key={mapKey}
           maxZoom={18}
           style={{ height: "100%", width: "100%", cursor: "default" }}
